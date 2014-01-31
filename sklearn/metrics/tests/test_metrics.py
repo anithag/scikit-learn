@@ -166,6 +166,8 @@ THRESHOLDED_METRICS = {
     partial(average_precision_score, average="micro"),
     "macro_average_precision_score":
     partial(average_precision_score, average="macro"),
+    "label_ranking_average_precision_score":
+    label_ranking_average_precision_score,
 }
 
 ALL_METRICS = dict()
@@ -188,6 +190,7 @@ METRIC_UNDEFINED_MULTICLASS = [
     "samples_precision_score", "samples_recall_score",
 
     "samples_average_precision_score",  "samples_roc_auc",
+    "label_ranking_average_precision_score"
 ]
 
 # Metrics with an "average" argument
@@ -2592,6 +2595,9 @@ def check_zero_or_all_relevant_labels(lrap_score):
         assert_equal(lrap_score(y_true, y_score), 1.)
         assert_equal(lrap_score(y_true, y_score_ties), 1.)
 
+    # Degenerate case: only one label
+    assert_almost_equal(lrap_score([[1], [0], [1], [0]],
+                                   [[0.5], [0.5], [0.5], [0.5]]), 1.)
 
 def check_lrap_error_raised(lrap_score):
     # Raise value error if not appropriate format
