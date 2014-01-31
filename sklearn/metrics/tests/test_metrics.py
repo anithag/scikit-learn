@@ -1508,8 +1508,8 @@ def test_invariance_string_vs_numbers_labels():
             measure_with_number = metric(y1, y2)
             measure_with_str = metric(y1_str, y2)
             assert_array_equal(measure_with_number, measure_with_str,
-                               err_msg="{0} failed string vs number invariance "
-                                       "test".format(name))
+                               err_msg="{0} failed string vs number "
+                                       "invariance test".format(name))
 
             measure_with_strobj = metric(y1_str.astype('O'), y2)
             assert_array_equal(measure_with_number, measure_with_strobj,
@@ -2599,6 +2599,7 @@ def check_zero_or_all_relevant_labels(lrap_score):
     assert_almost_equal(lrap_score([[1], [0], [1], [0]],
                                    [[0.5], [0.5], [0.5], [0.5]]), 1.)
 
+
 def check_lrap_error_raised(lrap_score):
     # Raise value error if not appropriate format
     assert_raises(ValueError, lrap_score,
@@ -2735,4 +2736,3 @@ def test_label_ranking_avp():
         yield (check_alternative_lrap_implementation,
                label_ranking_average_precision_score,
                n_classes, n_samples, random_state)
-

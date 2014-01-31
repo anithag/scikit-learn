@@ -2057,7 +2057,8 @@ def label_ranking_average_precision_score(y_true, y_score):
     >>> from sklearn.metrics import label_ranking_average_precision_score
     >>> y_true = np.array([[1, 0, 0], [0, 0, 1]])
     >>> y_score = np.array([[0.75, 0.5, 1], [1, 0.2, 0.1]])
-    >>> label_ranking_average_precision_score(y_true, y_score) # doctest: +ELLIPSIS
+    >>> label_ranking_average_precision_score(y_true, y_score) \
+        # doctest: +ELLIPSIS
     0.416...
 
     """
@@ -2085,21 +2086,23 @@ def label_ranking_average_precision_score(y_true, y_score):
             score += 1.
             continue
 
+        # Compute denominators
         unique_all, inverse = np.unique(y_score[i], return_inverse=True)
         count = bincount(inverse, minlength=unique_all.size)
-        cum_count = count[::-1].cumsum()[::-1] # reverse cumsum
+        cum_count = count[::-1].cumsum()[::-1]  # reverse cumsum
 
+        # Compute numerators
         unique_relevant, relevant_inverse = np.unique(y_score[i, relevant],
                                                       return_inverse=True)
         count_relevant = bincount(relevant_inverse,
                                   minlength=unique_relevant.size)
         cum_count_relevant = count_relevant[::-1].cumsum()[::-1]
 
-
         score += (cum_count_relevant[relevant_inverse] /
                   cum_count[inverse[relevant]]).mean()
 
     return score / n_samples
+
 
 ###############################################################################
 # Regression metrics
