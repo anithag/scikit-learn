@@ -1,5 +1,11 @@
 import numpy as np
 
+from scipy.sparse import coo_matrix
+from scipy.sparse import csc_matrix
+from scipy.sparse import csr_matrix
+from scipy.sparse import dok_matrix
+from scipy.sparse import lil_matrix
+
 from sklearn.utils.testing import assert_almost_equal
 from sklearn.utils.testing import assert_array_equal
 from sklearn.utils.testing import assert_equal
@@ -253,3 +259,80 @@ def test_label_binarize_with_multilabel_indicator():
 
     output = lb.fit(y).transform(y)
     assert_array_equal(output, expected)
+
+
+def test_label_binarize_with_class_order():
+    out = label_binarize([1, 6], classes=[1, 2, 4, 6])
+    expected = np.array([[1, 0, 0, 0], [0, 0, 0, 1]])
+    assert_array_equal(out, expected)
+
+    # Modified class order
+    out = label_binarize([1, 6], classes=[1, 6, 4, 2])
+    expected = np.array([[1, 0, 0, 0], [0, 1, 0, 0]])
+    assert_array_equal(out, expected)
+
+
+def check_dense_output(y, classes, pos_label, neg_label, expected):
+    for dense_output in [True, False]:
+        if ((pos_label == 0 or neg_label != 0) and dense_output == False):
+            continue
+
+        output = label_binarize(y, classes, neg_label=neg_label,
+                                pos_label=pos_label,
+                                dense_output=dense_output)
+        assert_array_equal(toarray(output), expected)
+
+        # TODO !!!
+        # lb = LabelBinarizer(neg_label=neg_label, pos_label=pos_label,
+        #                     dense_output=dense_output)
+        # output = lb.fit_transform(y)
+        # assert_array_equal(toarray(output), expected)
+        # inverse_output = lb.inverse_transform(output)
+        # assert_array_equal(toarray(inverse_output), y)
+
+def test_label_binarize_dense_output_binary():
+    y = [0, 1, 0]
+    classes = [0, 1]
+    pos_label = 2
+    neg_label = -1
+    expected = np.array([[2, -1], [-1, 2], [2, -1]])[:, 1].reshape((-1, 1))
+
+    yield check_dense_output, y, classes, pos_label, neg_label, expected
+
+
+def test_label_binarize_dense_output_multiclass():
+    y = [0, 1, 2]
+    classes = [0, 1, 2]
+    pos_label = 2
+    neg_label = 0
+    expected = 2 * np.eye(3)
+
+    yield check_dense_output, y, classes, pos_label, neg_label, expected
+
+    assert_raises(ValueError, label_binarize, y, classes, neg_label=-1,
+                  pos_label=pos_label, dense_output=False)
+
+
+def test_label_binarize_dense_output_multilabel():
+    y_seq = [(1,), (0, 1, 2), tuple()]
+    y_ind = np.array([[0, 1, 0], [1, 1, 1], [0, 0, 0]])
+    classes = [0, 1, 2]
+    pos_label = 2
+    neg_label = 0
+    expected = pos_label * y_ind
+    y_sparse = [sparse_matrix(y_ind)
+                for sparse_matrix in [coo_matrix, csc_matrix, csr_matrix,
+                                      dok_matrix, lil_matrix]]
+
+    for y in [y_ind, y_seq] + y_sparse:
+        yield check_dense_output, y, classes, pos_label, neg_label, expected
+
+    assert_raises(ValueError, label_binarize, y, classes, neg_label=-1,
+                  pos_label=pos_label, dense_output=False)
+
+
+def test_invalid_input_label_binarize():
+    assert_raises(ValueError, label_binarize, [0.5, 2], classes=[1, 2])
+    assert_raises(ValueError, label_binarize, [0, 2], classes=[0, 2],
+                  pos_label=0, neg_label=1)
+    assert_raises(ValueError, label_binarize, [1, 2], classes=[0, 2])
