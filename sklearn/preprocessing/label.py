@@ -518,6 +518,17 @@ def _inverse_label_binarize(y, y_type, classes, threshold):
 
     classes = np.asarray(classes)
 
+    # Multiclass is treated separately, since it uses the maximal score instead
+    # of a thresold
+    if y_type == "multiclass":
+        if issparse(y):
+            return np.array([classes[y.indices[start +
+                                               y.data[start:end].argmax()]]
+                             for start, end in zip(y.indptr[:-1],
+                                                   y.indptr[1:])])
+        else:
+            return classes[y.argmax(axis=1)]
+
     # Perform thresholding
     if issparse(y):
         if threshold > 0:
@@ -536,15 +547,6 @@ def _inverse_label_binarize(y, y_type, classes, threshold):
             y = y.toarray()
 
         return classes[y.ravel()]
-
-    elif y_type == "multiclass":
-        if issparse(y):
-            return np.array([classes[y.indices[start +
-                                               y.data[start:end].argmax()]]
-                             for start, end in zip(y.indptr[:-1],
-                                                   y.indptr[1:])])
-        else:
-            return classes[y.argmax(axis=1)]
 
     elif y_type == "multilabel-indicator":
         return y
