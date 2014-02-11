@@ -227,9 +227,6 @@ class LabelBinarizer(BaseEstimator, TransformerMixin):
     """
 
     def __init__(self, neg_label=0, pos_label=1):
-        if neg_label >= pos_label:
-            raise ValueError("neg_label must be strictly less than pos_label.")
-
         self.neg_label = neg_label
         self.pos_label = pos_label
 
@@ -256,6 +253,11 @@ class LabelBinarizer(BaseEstimator, TransformerMixin):
         -------
         self : returns an instance of self.
         """
+        if self.neg_label >= self.pos_label:
+            raise ValueError("neg_label={0} must be strictly less than "
+                             "pos_label={1}.".format(self.neg_label,
+                                                     self.pos_label))
+
         y_type = type_of_target(y)
         self.multilabel_ = y_type.startswith('multilabel')
         if self.multilabel_:
@@ -290,7 +292,6 @@ class LabelBinarizer(BaseEstimator, TransformerMixin):
                              " input.")
 
         return label_binarize(y, self.classes_,
-                              multilabel=self.multilabel_,
                               pos_label=self.pos_label,
                               neg_label=self.neg_label)
 

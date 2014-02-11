@@ -167,8 +167,10 @@ def test_label_binarizer_errors():
     assert_raises(ValueError, lb.transform, [])
     assert_raises(ValueError, lb.inverse_transform, [])
 
-    assert_raises(ValueError, LabelBinarizer, neg_label=2, pos_label=1)
-    assert_raises(ValueError, LabelBinarizer, neg_label=2, pos_label=2)
+    assert_raises(ValueError, LabelBinarizer(neg_label=2, pos_label=1).fit,
+                  ["spam", "egg"])
+    assert_raises(ValueError, LabelBinarizer(neg_label=2, pos_label=2).fit,
+                  ["spam", "egg"])
 
 
 def test_label_encoder():
