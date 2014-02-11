@@ -1,7 +1,13 @@
 import numpy as np
 from itertools import product
-from sklearn.externals.six.moves import xrange
+from sklearn.externals.six.moves import xrange as range
 from sklearn.externals.six import iteritems
+
+from scipy.sparse import coo_matrix
+from scipy.sparse import csc_matrix
+from scipy.sparse import csr_matrix
+from scipy.sparse import dok_matrix
+from scipy.sparse import lil_matrix
 
 from sklearn.utils.testing import assert_array_equal
 from sklearn.utils.testing import assert_equal
@@ -112,6 +118,19 @@ EXAMPLES = {
     ]
 }
 
+# Add tests example for sparse multilabel indicator format
+sparse_matrix_examples = [
+    sparse_matrix(y)
+    for y in EXAMPLES["multilabel-indicator"]
+    for sparse_matrix in [coo_matrix, csc_matrix, csr_matrix,
+                          dok_matrix, lil_matrix]
+
+    # No support for non binary label
+    if np.all(np.unique(y.ravel()) == np.array([0, 1]))
+]
+EXAMPLES["multilabel-indicator"].extend(sparse_matrix_examples)
+
+
 NON_ARRAY_LIKE_EXAMPLES = [
     set([1, 2, 3]),
     {0: 'a', 1: 'b'},
@@ -127,7 +146,7 @@ def test_unique_labels():
     assert_raises(ValueError, unique_labels)
 
     # Multiclass problem
-    assert_array_equal(unique_labels(xrange(10)), np.arange(10))
+    assert_array_equal(unique_labels(range(10)), np.arange(10))
     assert_array_equal(unique_labels(np.arange(10)), np.arange(10))
     assert_array_equal(unique_labels([4, 0, 2]), np.array([0, 2, 4]))
 
@@ -145,8 +164,21 @@ def test_unique_labels():
                                                [0, 0, 0]])),
                        np.arange(3))
 
+    # Sparse multilabel indicator
+    for sparse_matrix in [coo_matrix, csc_matrix, csr_matrix,
+                          dok_matrix, lil_matrix]:
+        assert_array_equal(unique_labels(sparse_matrix([[0, 0, 1],
+                                                        [1, 0, 1],
+                                                        [0, 0, 0]])),
+                           np.arange(3))
+
+        assert_array_equal(unique_labels(sparse_matrix([[0, 0, 1],
+                                                        [0, 0, 0]])),
+                           np.arange(3))
+
+
     # Several arrays passed
-    assert_array_equal(unique_labels([4, 0, 2], xrange(5)),
+    assert_array_equal(unique_labels([4, 0, 2], range(5)),
                        np.arange(5))
     assert_array_equal(unique_labels((0, 1, 2), (0,), (2, 1)),
                        np.arange(3))
