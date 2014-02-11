@@ -537,7 +537,7 @@ def _inverse_label_binarize(y, y_type, classes, threshold):
 
         return classes[y.ravel()]
 
-    if y_type == "multiclass":
+    elif y_type == "multiclass":
         if issparse(y):
             return np.array([classes[y.indices[start +
                                                y.data[start:end].argmax()]]
