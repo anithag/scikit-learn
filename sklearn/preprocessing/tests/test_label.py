@@ -1,10 +1,13 @@
 import numpy as np
 
+from scipy.sparse import issparse
 from scipy.sparse import coo_matrix
 from scipy.sparse import csc_matrix
 from scipy.sparse import csr_matrix
 from scipy.sparse import dok_matrix
 from scipy.sparse import lil_matrix
+
+from sklearn.utils.multiclass import type_of_target
 
 from sklearn.utils.testing import assert_almost_equal
 from sklearn.utils.testing import assert_array_equal
@@ -16,6 +19,7 @@ from sklearn.utils.testing import assert_false
 from sklearn.preprocessing.label import LabelBinarizer
 from sklearn.preprocessing.label import LabelEncoder
 from sklearn.preprocessing.label import label_binarize
+from sklearn.preprocessing.label import _inverse_label_binarize
 
 
 from sklearn import datasets
@@ -279,18 +283,29 @@ def check_dense_output(y, classes, pos_label, neg_label, expected):
         if ((pos_label == 0 or neg_label != 0) and dense_output == False):
             continue
 
-        output = label_binarize(y, classes, neg_label=neg_label,
-                                pos_label=pos_label,
-                                dense_output=dense_output)
-        assert_array_equal(toarray(output), expected)
+        # check label_binarize
+        binarized = label_binarize(y, classes, neg_label=neg_label,
+                                   pos_label=pos_label,
+                                   dense_output=dense_output)
+        assert_array_equal(toarray(binarized), expected)
+        assert_equal(issparse(binarized), not dense_output)
 
-        # TODO !!!
-        # lb = LabelBinarizer(neg_label=neg_label, pos_label=pos_label,
-        #                     dense_output=dense_output)
-        # output = lb.fit_transform(y)
-        # assert_array_equal(toarray(output), expected)
-        # inverse_output = lb.inverse_transform(output)
-        # assert_array_equal(toarray(inverse_output), y)
+        # check inverse_label_binarize
+        inversed = _inverse_label_binarize(binarized,
+            y_type=type_of_target(y), classes=classes,
+            threshold=(neg_label + pos_label) / 2.)
+
+        assert_array_equal(toarray(inversed), toarray(y))
+
+        # Check label binarizer
+        lb = LabelBinarizer(neg_label=neg_label, pos_label=pos_label,
+                            dense_output=dense_output)
+        output = lb.fit_transform(y)
+        assert_array_equal(toarray(output), expected)
+        inverse_output = lb.inverse_transform(output)
+        assert_array_equal(toarray(inverse_output), toarray(y))
+        assert_equal(issparse(inverse_output), issparse(y))
+
 
 def test_label_binarize_dense_output_binary():
     y = [0, 1, 0]

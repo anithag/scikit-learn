@@ -189,6 +189,10 @@ class LabelBinarizer(BaseEstimator, TransformerMixin):
     pos_label : int (default: 1)
         Value with which positive labels must be encoded.
 
+    dense_output : boolean,
+        If True, the transformer will yield a csr sparse matrix, except
+        with binary target type.
+
     Attributes
     ----------
     `classes_` : array of shape [n_class]
@@ -197,6 +201,10 @@ class LabelBinarizer(BaseEstimator, TransformerMixin):
     `multilabel_` : boolean
         True if the transformer was fitted on a multilabel rather than a
         multiclass set of labels.
+
+    `y_type_` : str,
+        Give the type target detected at fitting time, e.g. "binary",
+        "multiclass", "multilabel-indicator", "multilabel-sequences".
 
     Examples
     --------
@@ -226,9 +234,10 @@ class LabelBinarizer(BaseEstimator, TransformerMixin):
         LabelBinarizer with fixed classes.
     """
 
-    def __init__(self, neg_label=0, pos_label=1):
+    def __init__(self, neg_label=0, pos_label=1, dense_output=True):
         self.neg_label = neg_label
         self.pos_label = pos_label
+        self.dense_output = dense_output
 
     @property
     @deprecated("Attribute `multilabel` was renamed to `multilabel_` in "
@@ -258,10 +267,15 @@ class LabelBinarizer(BaseEstimator, TransformerMixin):
                              "pos_label={1}.".format(self.neg_label,
                                                      self.pos_label))
 
-        y_type = type_of_target(y)
-        self.multilabel_ = y_type.startswith('multilabel')
+        self.y_type_ = type_of_target(y)
+
+        self.multilabel_ = self.y_type_.startswith('multilabel')
         if self.multilabel_:
-            self.indicator_matrix_ = y_type == 'multilabel-indicator'
+            self.indicator_matrix_ = self.y_type_ == 'multilabel-indicator'
+
+
+        if self.y_type_ == "multilabel-indicator":
+            self.sparse_indicator_matrix_ = issparse(y)
 
         self.classes_ = unique_labels(y)
 
@@ -284,16 +298,11 @@ class LabelBinarizer(BaseEstimator, TransformerMixin):
         Y : numpy array of shape [n_samples, n_classes]
         """
         self._check_fitted()
-
-        y_is_multilabel = type_of_target(y).startswith('multilabel')
-
-        if y_is_multilabel and not self.multilabel_:
-            raise ValueError("The object was not fitted with multilabel"
-                             " input.")
-
         return label_binarize(y, self.classes_,
                               pos_label=self.pos_label,
-                              neg_label=self.neg_label)
+                              neg_label=self.neg_label,
+                              dense_output=self.dense_output)
+
 
     def inverse_transform(self, Y, threshold=None):
         """Transform binary labels back to multi-class labels
@@ -331,27 +340,18 @@ class LabelBinarizer(BaseEstimator, TransformerMixin):
         self._check_fitted()
 
         if threshold is None:
-            half = (self.pos_label - self.neg_label) / 2.0
-            threshold = self.neg_label + half
+            threshold = (self.pos_label + self.neg_label) / 2.
 
-        if self.multilabel_:
-            Y = np.array(Y > threshold, dtype=int)
-            # Return the predictions in the same format as in fit
-            if self.indicator_matrix_:
-                # Label indicator matrix format
-                return Y
-            else:
-                # Lists of tuples format
-                return [tuple(self.classes_[np.flatnonzero(Y[i])])
-                        for i in range(Y.shape[0])]
+        y_inv = _inverse_label_binarize(Y, self.y_type_, self.classes_,
+                                        threshold)
 
-        if len(Y.shape) == 1 or Y.shape[1] == 1:
-            y = np.array(Y.ravel() > threshold, dtype=int)
+        if self.y_type_ == "multilabel-indicator" :
+            if self.sparse_indicator_matrix_:
+                y_inv = csr_matrix(y_inv)
+            elif issparse(y_inv):
+                y_inv = y_inv.toarray()
 
-        else:
-            y = Y.argmax(axis=1)
-
-        return self.classes_[y]
+        return y_inv
 
 
 def label_binarize(y, classes, neg_label=0, pos_label=1,
@@ -414,8 +414,6 @@ def label_binarize(y, classes, neg_label=0, pos_label=1,
     LabelBinarizer
 
     """
-
-
     if neg_label >= pos_label:
         raise ValueError("neg_label must be strictly less than pos_label.")
 
@@ -506,3 +504,58 @@ def label_binarize(y, classes, neg_label=0, pos_label=1,
         Y = Y[:, 1].reshape((-1, 1))
 
     return Y
+
+
+def _inverse_label_binarize(y, y_type, classes, threshold):
+    """Inverse label binarization transformation"""
+
+    if y_type == "binary" and  y.ndim == 2 and y.shape[1] != 1:
+         raise ValueError("y_type='binary', but y.shape = {0}".format(y.shape))
+
+    if y_type != "binary" and y.shape[1] != len(classes):
+        raise ValueError("The number of class is not equal to the number of "
+                         "dimension of y.")
+
+    classes = np.asarray(classes)
+
+    # Perform thresholding
+    if issparse(y):
+        if threshold > 0:
+            y = y.tocsr()
+            y.data = np.array(y.data > threshold, dtype=np.int)
+            y.eliminate_zeros()
+        else:
+            y = np.array(y.toarray() > threshold, dtype=np.int)
+
+    else:
+        y = np.array(y > threshold, dtype=np.int)
+
+    # Inverse transform data
+    if y_type == "binary":
+        if issparse(y):
+            y = y.toarray()
+
+        return classes[y.ravel()]
+
+    if y_type == "multiclass":
+        if issparse(y):
+            return np.array([classes[y.indices[start +
+                                               y.data[start:end].argmax()]]
+                             for start, end in zip(y.indptr[:-1],
+                                                   y.indptr[1:])])
+        else:
+            return classes[y.argmax(axis=1)]
+
+    elif y_type == "multilabel-indicator":
+        return y
+
+    elif y_type == "multilabel-sequences":
+        if issparse(y):
+            return [tuple(classes.take(y.indices[start:end]))
+                    for start, end in zip(y.indptr[:-1], y.indptr[1:])]
+        else:
+            return [tuple(classes.take(np.flatnonzero(y[i])))
+                          for i in range(len(y))]
+
+    else:
+        raise ValueError("{0} format is not supported".format(y_type))
